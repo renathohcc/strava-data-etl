@@ -7,10 +7,10 @@ import time
 
 #Connect to the MySQL DataBase
 conn = mysql.connector.connect(
-    host="localhost",     
-    user="root",    
-    password="hopt1234",  
-    database="strava" 
+    host="YOUR SQL HOST",     
+    user="YOUR SQL USER",    
+    password="YOUR SQL PASSWORD",  
+    database="YOUR DATABASE NAME" 
 )
 cursor = conn.cursor()
 
