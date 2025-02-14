@@ -4,13 +4,14 @@ import mysql.connector
 from datetime import datetime
 from stravalib import Client
 import time
+import pytz
 
 #Connect to the MySQL DataBase
 conn = mysql.connector.connect(
-    host="YOUR SQL HOST",     
-    user="YOUR SQL USER",    
-    password="YOUR SQL PASSWORD",  
-    database="YOUR DATABASE NAME" 
+    host="YOUR MYSQL HOST",     
+    user="YOUR USERNAME",    
+    password="YOUR PASSWORD",  
+    database="DATABASE NAME" 
 )
 cursor = conn.cursor()
 
@@ -19,8 +20,8 @@ cursor = conn.cursor()
 client = Client()
 
 # Step 2: Authenticate with Strava
-client_id = "YOUR CLIENT_ID"
-client_secret = "YOUR SECRET CLIENT KEY"
+client_id = "YOUR STRAVA CLIENT ID"
+client_secret = "YOUR STRAVA CLIENT SECRET ID"
 redirect_uri = "http://localhost"  # Must match the callback domain in your Strava app
 
 # Generate the authorization URL
@@ -101,11 +102,24 @@ df["moving_time"] = df["moving_time"] / 60  # Convert moving_time from seconds t
 df["max_speed"] = df["max_speed"] * 3.6  # Convert max_speed from m/s to km/h
 df["average_speed"] = df["average_speed"] * 3.6  # Convert max_speed from m/s to km/h
 
-#Convert start_date to the datatime format of MySQL
+#Convert start_date to the datatime format of MySQL and adjusting the time zone
+
+#Define the time zone
+from_zone = pytz.utc #get the origin time zone
+to_zone = pytz.timezone("America/Sao_Paulo") #Put your time zone here
+
 def convert_to_mysql_datetime(start_date):
     # Remove the sufix z and convert the format
     start_date = start_date.rstrip('Z')
-    return datetime.strptime(start_date, '%Y-%m-%dT%H:%M:%S')
+    dt = datetime.strptime(start_date, '%Y-%m-%dT%H:%M:%S')
+
+    #Convert to the correct time zone
+    dt = from_zone.localize(dt).astimezone(to_zone)
+
+    #Remove time zone infos to make compatible with MyQSL format
+    dt = dt.replace(tzinfo=None)
+
+    return dt
 
 df["start_date"] = df["start_date"].apply(convert_to_mysql_datetime)
 
@@ -123,6 +137,15 @@ for _, row in df.iterrows():
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (athlete_id, row["name"], row["start_date"], row["type"], row["distance"], row["moving_time"], 
             row["total_elevation_gain"], row["max_speed"], row["average_speed"], row["id"]))
+    else:
+         # Update the activity data, if already exist
+        cursor.execute("""
+            UPDATE activities
+            SET athlete_id = %s, activity_name = %s, start_date = %s, activity_type = %s, distance = %s, 
+                duration = %s, elevation = %s, max_speed = %s, avg_speed = %s
+            WHERE activity_id = %s
+        """, (athlete_id, row["name"], row["start_date"], row["type"], row["distance"], row["moving_time"], 
+              row["total_elevation_gain"], row["max_speed"], row["average_speed"], row["id"]))
 
 conn.commit()  
 cursor.close()
